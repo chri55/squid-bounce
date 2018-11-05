@@ -1,7 +1,13 @@
-var unit = 16; // 16 pixels per unit.
+const unit = 16; // 16 pixels per unit.
 const CHARGE_SPEED = 1; //charge += 1 every 100ms
-var sprite, app, charge, charger, floor;
+const W = 512,
+      H = 512,
+      WW = 512,
+      WH = 1024;
+var sprite, app, charge, charger, floor, viewport;
 charge = 0;
+
+
 
 class Player {
     constructor(){
@@ -25,17 +31,21 @@ function main() {
     //images need to be added to the texture cache before use.
     PIXI.utils.TextureCache["assets/still.png"];
     PIXI.utils.TextureCache["assets/log.png"];
+    PIXI.utils.TextureCache["assets/jump_charge.gif"];
+    PIXI.utils.TextureCache["assets/fully_charged.gif"];
 
     PIXI.loader
         .add("assets/still.png")
         .add("assets/log.png")
+        .add("assets/jump_charge.gif")
+        .add("assets/fully_charged.gif")
         .add("background.jpg")
         .load(setup);
 
     function update(delta){
-        if (player.sprite.vy < 9.8){
+        if (player.sprite.vy < 10.8){
             player.sprite.y += player.sprite.vy;
-            player.sprite.vy += 0.1;
+            player.sprite.vy += 0.15; //how fast you fall
         }
         else {
             player.sprite.vy = 9.7;
@@ -50,6 +60,23 @@ function main() {
                 player.sprite.y = tile.y - 34;
             }
         }));
+
+        // http://www.html5gamedevs.com/topic/25372-camera-position-and-object-positioning/
+        app.stage.pivot.y = player.sprite.y;
+        app.stage.position.y = app.renderer.height/2;
+
+        /*
+        if (player.jumping && player.sprite.y < 300){
+            Array.prototype.forEach.call(floor.children, (function(tile) {
+                app.stage.pivot.y = player.sprite.y;
+                app.stage.position.y = app.renderer.height/2;
+            }))
+        }
+        */
+        player.sprite.x = player.sprite.x % 512;
+        if (player.sprite.x < 0){
+            player.sprite.x += 511;
+        }
     }
 
 
@@ -70,6 +97,7 @@ function main() {
             tile.x = i * unit;
             tile.y = 300;
         }
+
         app.stage.addChild(floor);
 
         //BACKGROUND.
@@ -90,8 +118,8 @@ function main() {
             down  = controller(40);
 
         down.press = () => {
-
-            if (charge < 9.8){
+            //player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/jump_charge.gif"].texture);
+            if (charge < 10.8){
                 charger = setInterval(function (){
                     if (charge < 9){
                         charge += CHARGE_SPEED;
