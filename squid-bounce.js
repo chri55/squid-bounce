@@ -1,5 +1,6 @@
 var unit = 16; // 16 pixels per unit.
-var sprite, app, charge, floor;
+const CHARGE_SPEED = 1; //charge += 1 every 100ms
+var sprite, app, charge, charger, floor;
 charge = 0;
 
 class Player {
@@ -43,7 +44,7 @@ function main() {
         player.sprite.x += player.sprite.vx;
 
         Array.prototype.forEach.call(floor.children, (function(tile) {
-            if(hitTestRectangle(player.sprite, tile)){
+            if(player.sprite.vy > 0 && hitTestRectangle(player.sprite, tile)){
                 player.jumping = false;
                 player.sprite.vx = 0;
                 player.sprite.y = tile.y - 34;
@@ -53,8 +54,29 @@ function main() {
 
 
     function setup(){
+        // FLOOR TILES
+        floor = new PIXI.Container();
+        for (var i  = 0 ; i < 32; i++){
+            var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
+            floor.addChild(tile);
+            console.log("hey listen");
+            tile.x = i * unit;
+            tile.y = 454;
+        }
+        for (var i = 11; i < 20; i++){
+            var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
+            floor.addChild(tile);
+            console.log("hey 2");
+            tile.x = i * unit;
+            tile.y = 300;
+        }
+        app.stage.addChild(floor);
+
+        //BACKGROUND.
+        var bg = new PIXI.Sprite(PIXI.loader.resources["background.jpg"].texture);
 
 
+        //PLAYER
         player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/still.png"].texture);
         app.stage.addChild(player.sprite);
         player.sprite.x = 240;
@@ -68,16 +90,34 @@ function main() {
             down  = controller(40);
 
         down.press = () => {
-            if (!player.jumping){
-                charge = 9;
+
+            if (charge < 9.8){
+                charger = setInterval(function (){
+                    if (charge < 9){
+                        charge += CHARGE_SPEED;
+                        console.log(charge);
+                        player.charging = true;
+                        player.charged = false;
+                    }
+                    else {
+                        player.charging = false;
+                        player.charged = true;
+                    }
+                }, 100);
             }
         }
 
         down.release = () => {
             if (!player.jumping){
+                clearInterval(charger);
                 player.sprite.vy = -charge;
                 console.log(player.sprite.vy);
                 player.jumping = true;
+                charge = 0;
+            }
+            else {
+                clearInterval(charger);
+                charge = 0;
             }
         }
 
@@ -108,22 +148,6 @@ function main() {
         right.release = () => {
             player.sprite.vx = 0;
         }
-
-
-
-        // FLOOR TILES
-        floor = new PIXI.Container();
-        for (var i  = 0 ; i < 32; i++){
-            var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
-            floor.addChild(tile);
-            console.log("hey listen");
-            tile.x = i * 17;
-            tile.y = 454;
-        }
-        app.stage.addChild(floor);
-
-        //BACKGROUND. TODO: move to top to load in first after all is said and done.
-        var bg = new PIXI.Sprite(PIXI.loader.resources["background.jpg"].texture);
 
         //Start the game loop by adding the `update` function to
         //Pixi's `ticker` and providing it with a `delta` argument.
