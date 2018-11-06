@@ -5,6 +5,7 @@ const W = 512,
       WW = 512,
       WH = 1024;
 var sprite, anim, app, charge, charger, floor, viewport;
+var goal, winText;
 charge = 0;
 
 
@@ -37,6 +38,7 @@ function main() {
     }
     PIXI.utils.TextureCache["assets/full/full1.png"];
     PIXI.utils.TextureCache["assets/full/full12png"];
+    PIXI.utils.TextureCache["assets/star.png"];
 
     PIXI.loader
         .add("assets/still.png")
@@ -53,11 +55,12 @@ function main() {
         .add("assets/jump_charge/jump8.png")
         .add("assets/full/full1.png")
         .add("assets/full/full2.png")
+        .add("assets/star.png")
         .add("background.jpg")
         .load(setup);
 
     function update(delta){
-        if (player.sprite.vy < 10.8){
+        if (player.sprite.vy < 10){
             player.sprite.y += player.sprite.vy;
             player.sprite.vy += 0.15; //how fast you fall
         }
@@ -91,19 +94,18 @@ function main() {
         if (player.sprite.x < 0){
             player.sprite.x += 511;
         }
+
+        if (hitTestRectangle(player.sprite, goal)){
+            player.sprite.vy = 0;
+            player.sprite.vx = 0;
+            winText.visible = true;
+        }
     }
 
 
     function setup(){
         // FLOOR TILES
-        floor = new PIXI.Container();
-        for (var i  = 0 ; i < 32; i++){
-            var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
-            floor.addChild(tile);
-            console.log("hey listen");
-            tile.x = i * unit;
-            tile.y = 454;
-        }
+        createLevelBase();
         for (var i = 11; i < 20; i++){
             var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
             floor.addChild(tile);
@@ -112,7 +114,27 @@ function main() {
             tile.y = 300;
         }
 
+        var yval = 150;
+        for (var i = 0; i < 10; i++){
+            createPlat(yval);
+            yval -= 150;
+        }
+
         app.stage.addChild(floor);
+
+        // END GOAL
+        goal = new PIXI.Sprite(PIXI.loader.resources["assets/star.png"].texture);
+        goal.x = W / 2 - goal.width;
+        goal.y = yval - 50;
+        app.stage.addChild(goal);
+
+        winText = new PIXI.Text("Fresh!", {fontFamily : 'Arial', fontSize : 48,
+                                               fill : 0x777777, align : 'center'});
+        winText.x = W / 2;
+        winText.y = goal.y - 50;
+        winText.visible = false;
+        app.stage.addChild(winText);
+
 
         //BACKGROUND.
         var bg = new PIXI.Sprite(PIXI.loader.resources["background.jpg"].texture);
@@ -158,9 +180,9 @@ function main() {
         down.press = () => {
             player.sprite.play();
             //player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/jump_charge.gif"].texture);
-            if (charge < 10.8){
+            if (charge < 10){
                 charger = setInterval(function (){
-                    if (charge < 9){
+                    if (charge < 10){
                         charge += CHARGE_SPEED;
                         console.log(charge);
                         player.charging = true;
@@ -223,6 +245,27 @@ function main() {
         //Start the game loop by adding the `update` function to
         //Pixi's `ticker` and providing it with a `delta` argument.
         app.ticker.add(delta => update(delta));
+
+        function createLevelBase() {
+            floor = new PIXI.Container();
+            for (var i  = 0 ; i < 32; i++){
+                var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
+                floor.addChild(tile);
+                console.log("hey listen");
+                tile.x = i * unit;
+                tile.y = 454;
+            }
+        }
+
+        function createPlat(yval){
+            platStart = Math.floor((Math.random() * 22) + 1);
+            for (var i = platStart; i < platStart + 10; i++){
+                var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
+                floor.addChild(tile);
+                tile.x = i * unit;
+                tile.y = yval;
+            }
+        }
     }
 
     function controller(keyCode){
