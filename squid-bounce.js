@@ -4,7 +4,7 @@ const W = 512,
       H = 512,
       WW = 512,
       WH = 1024;
-var sprite, app, charge, charger, floor, viewport;
+var sprite, anim, app, charge, charger, floor, viewport;
 charge = 0;
 
 
@@ -31,14 +31,28 @@ function main() {
     //images need to be added to the texture cache before use.
     PIXI.utils.TextureCache["assets/still.png"];
     PIXI.utils.TextureCache["assets/log.png"];
-    PIXI.utils.TextureCache["assets/jump_charge.gif"];
-    PIXI.utils.TextureCache["assets/fully_charged.gif"];
+    PIXI.utils.TextureCache["assets/jump_charge.png"];
+    for (var i = 1; i < 9; i++){
+        PIXI.utils.TextureCache["assets/jump_charge/jump" + i + ".png"];
+    }
+    PIXI.utils.TextureCache["assets/full/full1.png"];
+    PIXI.utils.TextureCache["assets/full/full12png"];
 
     PIXI.loader
         .add("assets/still.png")
         .add("assets/log.png")
-        .add("assets/jump_charge.gif")
-        .add("assets/fully_charged.gif")
+        .add("assets/jump_charge.json")
+        //.add("assets/fully_charged.gif")
+        .add("assets/jump_charge/jump1.png")
+        .add("assets/jump_charge/jump2.png")
+        .add("assets/jump_charge/jump3.png")
+        .add("assets/jump_charge/jump4.png")
+        .add("assets/jump_charge/jump5.png")
+        .add("assets/jump_charge/jump6.png")
+        .add("assets/jump_charge/jump7.png")
+        .add("assets/jump_charge/jump8.png")
+        .add("assets/full/full1.png")
+        .add("assets/full/full2.png")
         .add("background.jpg")
         .load(setup);
 
@@ -105,12 +119,36 @@ function main() {
 
 
         //PLAYER
-        player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/still.png"].texture);
+        var frames = [];
+
+        for (var i = 1; i < 9; i++) {
+            frames.push(PIXI.Texture.fromFrame("assets/jump_charge/jump" + i + ".png"))
+        }
+        anim = new PIXI.extras.AnimatedSprite(frames);
+        //app.stage.addChild(anim);
+        anim.x = 240;
+        anim.y = 420;
+        anim.animationSpeed = 0.125;
+        anim.loop = false;
+        player.sprite = anim;
+
+        var fully = [];
+        fully.push(PIXI.Texture.fromFrame("assets/full/full1.png"));
+        fully.push(PIXI.Texture.fromFrame("assets/full/full2.png"));
+        fullanim = new PIXI.extras.AnimatedSprite(fully);
+        fullanim.animationSpeed = 0.3;
+        fullanim.play();
+        fullanim.visible = false;
+        player.sprite.addChild(fullanim);
+
+        //player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/still.png"].texture);
         app.stage.addChild(player.sprite);
         player.sprite.x = 240;
         player.sprite.y = 420;
         player.sprite.vy = 0;
         player.sprite.vx = 0;
+
+
 
         var left  = controller(37),
             up    = controller(38),
@@ -118,6 +156,7 @@ function main() {
             down  = controller(40);
 
         down.press = () => {
+            player.sprite.play();
             //player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/jump_charge.gif"].texture);
             if (charge < 10.8){
                 charger = setInterval(function (){
@@ -128,6 +167,7 @@ function main() {
                         player.charged = false;
                     }
                     else {
+                        player.sprite.getChildAt(0).visible = true;
                         player.charging = false;
                         player.charged = true;
                     }
@@ -136,6 +176,9 @@ function main() {
         }
 
         down.release = () => {
+            player.sprite.getChildAt(0).visible = false;
+            player.sprite.gotoAndStop(0);
+            player.sprite.texture = player.sprite.textures[0];
             if (!player.jumping){
                 clearInterval(charger);
                 player.sprite.vy = -charge;
