@@ -1,14 +1,34 @@
+
+//TODO add ice platforms
+//TODO add moving platforms
+//separate container for moving platforms so we can use different collision logic.
+//TODO global variables in better order, more sensible.
+
 const unit = 16; // 16 pixels per unit.
 const CHARGE_SPEED = 1; //charge += 1 every 100ms
 const W = 512,
       H = 512,
-      WW = 512,
-      WH = 1024;
-var sprite, anim, app, charge, charger, floor, viewport;
-var goal, winText;
+      WW = 512, // WORLD WIDTH
+      WH = 1024;// WORLD HEIGHT // both probably deprecated, I can just make the world as big as I need to.
+
+/* add:
+- player                | PIXI.Sprite()
+- player animation      | PIXI.extras.AnimatedSprite()
+- main stage            | PIXI.Application()
+- player charge         | number
+- charger               | Interval function.
+- regular floor         | PIXI.Container()
+
+- goal                  | PIXI.Sprite()
+- winText               | PIXI.Text()
+- levelText             | PIXI.Text()
+- score                 | PIXI.Text()
+*/
+var sprite, anim, app, charge, charger, floor;
+var goal, winText, levelText, score;
+
+var level = 1;
 charge = 0;
-
-
 
 class Player {
     constructor(){
@@ -18,6 +38,9 @@ class Player {
         this.jumping = false;
         this.chargedUp = false;
         this.charging = false;
+        // helpful scoring vars
+        this.score = 0;
+        this.maxHeight = null;
     }
 }
 var player = new Player();
@@ -43,8 +66,6 @@ function main() {
     PIXI.loader
         .add("assets/still.png")
         .add("assets/log.png")
-        .add("assets/jump_charge.json")
-        //.add("assets/fully_charged.gif")
         .add("assets/jump_charge/jump1.png")
         .add("assets/jump_charge/jump2.png")
         .add("assets/jump_charge/jump3.png")
@@ -60,6 +81,7 @@ function main() {
         .load(setup);
 
     function update(delta){
+        // Falling Down //
         if (player.sprite.vy < 10){
             player.sprite.y += player.sprite.vy;
             player.sprite.vy += 0.15; //how fast you fall
@@ -68,8 +90,11 @@ function main() {
             player.sprite.vy = 9.7;
             player.jumping = false;
         }
+        // Side To Side Move //
         player.sprite.x += player.sprite.vx;
 
+        // Check Collision with Floor(s) //
+        // Regular Floor tiles
         Array.prototype.forEach.call(floor.children, (function(tile) {
             if(player.sprite.vy > 0 && hitTestRectangle(player.sprite, tile)){
                 player.jumping = false;
@@ -79,65 +104,89 @@ function main() {
         }));
 
         // http://www.html5gamedevs.com/topic/25372-camera-position-and-object-positioning/
+        // Move the screen instead of the player to simulate camera //
         app.stage.pivot.y = player.sprite.y;
         app.stage.position.y = app.renderer.height/2;
 
-        /*
-        if (player.jumping && player.sprite.y < 300){
-            Array.prototype.forEach.call(floor.children, (function(tile) {
-                app.stage.pivot.y = player.sprite.y;
-                app.stage.position.y = app.renderer.height/2;
-            }))
-        }
-        */
+        // Screen Wrap //
         player.sprite.x = player.sprite.x % 512;
         if (player.sprite.x < 0){
             player.sprite.x += 511;
         }
 
+        // Add Score //
+        if (player.sprite.y < player.maxHeight){
+            player.score += 5;
+            player.maxHeight = player.sprite.y;
+        }
+
+        // Goal Collision //
         if (hitTestRectangle(player.sprite, goal)){
             player.sprite.vy = 0;
             player.sprite.vx = 0;
+            // don't allow them to build up charge for next level early.
+            player.jumping = true;
             winText.visible = true;
+            player.score += 1000 * level;
+            app.ticker.stop();
+            level ++;
+            sleep(1000).then(() => {
+                // Reset Level //
+                levelText.text = "Level " + level;
+                createLevel(level, 300);
+                console.log("slept");
+                winText.visible = false;
+                app.stage.removeChild(player.sprite);
+                app.stage.addChild(player.sprite);
+                player.maxHeight = player.sprite.y;
+                player.jumping = false;
+                app.ticker.start();
+            });
         }
+        // Update Score //
+        score.text = player.score;
+
+        // Keep score and level text in their respective corners.
+        score.y = player.sprite.y - 250;
+        levelText.y = player.sprite.y - 250;
+
     }
 
 
     function setup(){
-        // FLOOR TILES
+
+        // BACKGROUND //
+        var bg = new PIXI.Sprite(PIXI.loader.resources["background.jpg"].texture);
+
+        // FLOOR TILES //
+        floor = new PIXI.Container();
         createLevelBase();
         for (var i = 11; i < 20; i++){
             var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
             floor.addChild(tile);
-            console.log("hey 2");
             tile.x = i * unit;
             tile.y = 300;
         }
-
         var yval = 150;
         for (var i = 0; i < 10; i++){
-            createPlat(yval);
+            createPlat(level, yval);
             yval -= 150;
         }
-
         app.stage.addChild(floor);
 
-        // END GOAL
+
+        // END GOAL //
         goal = new PIXI.Sprite(PIXI.loader.resources["assets/star.png"].texture);
         goal.x = W / 2 - goal.width;
         goal.y = yval - 50;
         app.stage.addChild(goal);
 
-        winText = new PIXI.Text("Fresh!", {fontFamily : 'Arial', fontSize : 48,
-                                               fill : 0x777777, align : 'center'});
-        winText.x = W / 2;
+        winText = new PIXI.Text("Fresh!", {fontFamily : 'Press Start 2P', fontSize : 40,
+                                               fill : 0xffffff, align : 'center'});
+        winText.x = (W / 2) - (winText.width / 2);
         winText.y = goal.y - 50;
         winText.visible = false;
         app.stage.addChild(winText);
-
-
-        //BACKGROUND.
-        var bg = new PIXI.Sprite(PIXI.loader.resources["background.jpg"].texture);
 
 
         //PLAYER
@@ -147,13 +196,13 @@ function main() {
             frames.push(PIXI.Texture.fromFrame("assets/jump_charge/jump" + i + ".png"))
         }
         anim = new PIXI.extras.AnimatedSprite(frames);
-        //app.stage.addChild(anim);
         anim.x = 240;
         anim.y = 420;
         anim.animationSpeed = 0.125;
         anim.loop = false;
         player.sprite = anim;
 
+        // Fully charged animation, we only wanna show this at a certain time.
         var fully = [];
         fully.push(PIXI.Texture.fromFrame("assets/full/full1.png"));
         fully.push(PIXI.Texture.fromFrame("assets/full/full2.png"));
@@ -163,15 +212,30 @@ function main() {
         fullanim.visible = false;
         player.sprite.addChild(fullanim);
 
-        //player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/still.png"].texture);
         app.stage.addChild(player.sprite);
         player.sprite.x = 240;
         player.sprite.y = 420;
         player.sprite.vy = 0;
         player.sprite.vx = 0;
+        player.maxHeight = player.sprite.y + 1;
+
+        // HUD //
+        score = new PIXI.Text(player.score, {fontFamily : 'Press Start 2P', fontSize: 18,
+                                             fill : 0xffffff, align : 'right'});
+        score.x = 5
+        score.y = 0;
+        score.visible = true;
+        app.stage.addChild(score);
+
+        levelText = new PIXI.Text("Level " + level, {fontFamily : 'Press Start 2P', fontSize: 18,
+                                          fill: 0xffffff, align : 'left'});
+        levelText.x = W - levelText.width - 10;
+        levelText.y = 0;
+        levelText.visible = true;
+        app.stage.addChild(levelText);
 
 
-
+        // CONTROLLER | INPUT //
         var left  = controller(37),
             up    = controller(38),
             right = controller(39),
@@ -179,7 +243,6 @@ function main() {
 
         down.press = () => {
             player.sprite.play();
-            //player.sprite = new PIXI.Sprite(PIXI.loader.resources["assets/jump_charge.gif"].texture);
             if (charge < 10){
                 charger = setInterval(function (){
                     if (charge < 10){
@@ -242,32 +305,12 @@ function main() {
             player.sprite.vx = 0;
         }
 
-        //Start the game loop by adding the `update` function to
-        //Pixi's `ticker` and providing it with a `delta` argument.
+        // START //
         app.ticker.add(delta => update(delta));
 
-        function createLevelBase() {
-            floor = new PIXI.Container();
-            for (var i  = 0 ; i < 32; i++){
-                var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
-                floor.addChild(tile);
-                console.log("hey listen");
-                tile.x = i * unit;
-                tile.y = 454;
-            }
-        }
-
-        function createPlat(yval){
-            platStart = Math.floor((Math.random() * 22) + 1);
-            for (var i = platStart; i < platStart + 10; i++){
-                var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
-                floor.addChild(tile);
-                tile.x = i * unit;
-                tile.y = yval;
-            }
-        }
     }
 
+    // CONTROLLER CLASS //
     function controller(keyCode){
         var key = {};
         key.code = keyCode;
@@ -299,6 +342,7 @@ function main() {
         return key;
     }
 
+    // COLLISION CLASS //
     function hitTestRectangle(r1, r2) {
 
       //Define the variables we'll need to calculate
@@ -354,5 +398,92 @@ function main() {
 }
 
 
+function createLevelBase() {
+    /*
+    Create a base for the level at a specific y value. This will be the same each time.
+    */
+    for (var i  = 0 ; i < 32; i++){
+        var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
+        floor.addChild(tile);
+        console.log("hey listen");
+        tile.x = i * unit;
+        tile.y = 454;
+    }
+}
 
+function createPlat(level, yval){
+    /*
+    Create a platform.
+    Level modifiers can be added and changed. These determine how many blocks
+    are taken away from a platform.
+
+    yMod is a random value between 0-100 that is subtracted to the platform to
+    add some distance between plats.
+
+    There is a 1/15 chance that a platform will not be drawn after the modifier
+    is > 0.
+    */
+    platStart = Math.floor((Math.random() * 22) + 1);
+    var modifier;
+    if (level == 1){
+        modifier = 0
+    }
+    else if (level < 6){
+        modifier = 2;
+    }
+    else {
+        modifier = 4;
+    }
+    var yMod = Math.floor(Math.random() * 100);
+    for (var i = platStart; i < platStart + 10 - modifier; i++){
+        if (modifier > 0 && (Math.floor(Math.random) * 15) == 1){
+            break;
+        }
+        var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
+        floor.addChild(tile);
+        tile.x = i * unit;
+        tile.y = yval - yMod;
+    }
+}
+
+function createGoal(yval){
+    // Move the goal to the given y value.
+    // winText position will be updated to match goal position.
+    goal.y = yval - 50;
+    winText.y = goal.y - 50;
+
+}
+
+function createLevel(level, yval){
+    /* Create a level on win of a previous level.
+    level is the global variable of how many times a player has reached a goal.
+
+    yVal is the starting value for a platform. Generally 300, but can be reduced
+    for a higher starting platform.
+
+    all floor(s) containers will be destroyed on load to redraw them and prevent
+    leftover hitboxes from being there.
+
+    an extra (level) platforms are added per level.
+    */
+    app.stage.removeChild(floor);
+    floor = new PIXI.Container();
+    app.stage.addChild(floor);
+
+    createLevelBase();
+    player.sprite.y = 454;
+
+    for (var k = 0; k < 10 + level; k++){
+        createPlat(level, yval);
+        yval -= 150;
+    }
+    createGoal(yval);
+}
+
+const sleep = (ms) => {
+    // sleepy boi.
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Initial function call. //
 main();
