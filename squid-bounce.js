@@ -62,6 +62,7 @@ function main() {
     PIXI.utils.TextureCache["assets/full/full1.png"];
     PIXI.utils.TextureCache["assets/full/full12png"];
     PIXI.utils.TextureCache["assets/star.png"];
+    PIXI.utils.TextureCache["assets/bg.png"];
 
     PIXI.loader
         .add("assets/still.png")
@@ -77,7 +78,7 @@ function main() {
         .add("assets/full/full1.png")
         .add("assets/full/full2.png")
         .add("assets/star.png")
-        .add("background.jpg")
+        .add("assets/bg.png")
         .load(setup);
 
     function update(delta){
@@ -156,7 +157,15 @@ function main() {
     function setup(){
 
         // BACKGROUND //
-        var bg = new PIXI.Sprite(PIXI.loader.resources["background.jpg"].texture);
+        for (var i = -1; i < 100; i++){
+            var bg = new PIXI.Sprite(PIXI.loader.resources["assets/bg.png"].texture);
+            bg.y = -i * bg.height;
+            app.stage.addChild(bg);
+            var bbg = new PIXI.Sprite(PIXI.loader.resources["assets/bg.png"].texture);
+            bbg.y = -i * bg.height;
+            bbg.x = bbg.width;
+            app.stage.addChild(bbg);
+        }
 
         // FLOOR TILES //
         floor = new PIXI.Container();
