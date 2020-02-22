@@ -6,6 +6,7 @@
 
 const unit = 16; // 16 pixels per unit.
 const CHARGE_SPEED = 1; //charge += 1 every 100ms
+const LEVEL_BASE = 455; //px
 const W = 512,
       H = 512,
       WW = 512, // WORLD WIDTH
@@ -22,10 +23,11 @@ const W = 512,
 - goal                  | PIXI.Sprite()
 - winText               | PIXI.Text()
 - levelText             | PIXI.Text()
+- gameOverText          | PIXI.Text()
 - score                 | PIXI.Text()
 */
 var sprite, anim, app, charge, charger, floor;
-var goal, winText, levelText, score;
+var goal, winText, levelText, gameOverText, score;
 
 var level = 1;
 charge = 0;
@@ -40,10 +42,18 @@ class Player {
         this.charging = false;
         // helpful scoring vars
         this.score = 0;
-        this.maxHeight = null;
+        this.maxHeight = 0;
+        this.gameOver = false;
     }
 }
 var player = new Player();
+
+class Lava {
+  constructor(level){
+    this.level = level;
+    this.startingHeight = LEVEL_BASE + 50;
+  }
+}
 
 
 function main() {
@@ -63,6 +73,7 @@ function main() {
     PIXI.utils.TextureCache["assets/full/full12png"];
     PIXI.utils.TextureCache["assets/star.png"];
     PIXI.utils.TextureCache["assets/bg.png"];
+    PIXI.utils.TextureCache["assets/lava.png"];
 
     PIXI.loader
         .add("assets/still.png")
@@ -79,6 +90,7 @@ function main() {
         .add("assets/full/full2.png")
         .add("assets/star.png")
         .add("assets/bg.png")
+        .add("assets/lava.png")
         .load(setup);
 
     function update(delta){
@@ -98,9 +110,40 @@ function main() {
         // Regular Floor tiles
         Array.prototype.forEach.call(floor.children, (function(tile) {
             if(player.sprite.vy > 0 && hitTestRectangle(player.sprite, tile)){
+              if (player.maxHeight + 34 <= tile.y){
+
                 player.jumping = false;
                 player.sprite.vx = 0;
                 player.sprite.y = tile.y - 34;
+              }
+            }
+        }));
+
+        // LAVA
+        Array.prototype.forEach.call(lava.children, (function(tile) {
+            tile.y -= .75;
+            if(hitTestRectangle(player.sprite, tile)){
+              player.sprite.vy = 0;
+              player.sprite.vx = 0;
+              // don't allow them to build up charge for next level early.
+              player.jumping = true;
+              gameOverText.visible = true;
+              app.ticker.stop();
+              level = 1;
+              sleep(2000).then(() => {
+                  // Reset Level //
+                  levelText.text = "Level " + level;
+                  createLevel(level, 300);
+                  createLava();
+                  console.log("slept");
+                  gameOverText.visible = false;
+                  app.stage.removeChild(player.sprite);
+                  app.stage.addChild(player.sprite);
+                  player.maxHeight = LEVEL_BASE-35;
+                  player.jumping = false;
+                  player.score = 0;
+                  app.ticker.start();
+              });
             }
         }));
 
@@ -111,8 +154,8 @@ function main() {
 
         // Screen Wrap //
         player.sprite.x = player.sprite.x % 512;
-        if (player.sprite.x < 0){
-            player.sprite.x += 511;
+        if (player.sprite.x < -17){
+            player.sprite.x += 528;
         }
 
         // Add Score //
@@ -135,12 +178,14 @@ function main() {
                 // Reset Level //
                 levelText.text = "Level " + level;
                 createLevel(level, 300);
+                createLava();
                 console.log("slept");
                 winText.visible = false;
                 app.stage.removeChild(player.sprite);
                 app.stage.addChild(player.sprite);
-                player.maxHeight = player.sprite.y;
+                player.maxHeight = LEVEL_BASE-35;
                 player.jumping = false;
+                player.charge = 0;
                 app.ticker.start();
             });
         }
@@ -150,6 +195,7 @@ function main() {
         // Keep score and level text in their respective corners.
         score.y = player.sprite.y - 250;
         levelText.y = player.sprite.y - 250;
+        gameOverText.y = player.sprite.y - 50;
 
     }
 
@@ -183,6 +229,12 @@ function main() {
         }
         app.stage.addChild(floor);
 
+        // LAVA //
+        lava = new PIXI.Container();
+        createLava();
+        app.stage.addChild(lava);
+
+
 
         // END GOAL //
         goal = new PIXI.Sprite(PIXI.loader.resources["assets/star.png"].texture);
@@ -196,6 +248,12 @@ function main() {
         winText.y = goal.y - 50;
         winText.visible = false;
         app.stage.addChild(winText);
+
+        gameOverText = new PIXI.Text("Game over!", {fontFamily : 'Press Start 2P', fontSize : 40,
+                                               fill : 0xffffff, align : 'center'});
+        gameOverText.x = (W / 2) - (gameOverText.width / 2);
+        gameOverText.visible = false;
+        app.stage.addChild(gameOverText);
 
 
         //PLAYER
@@ -226,7 +284,9 @@ function main() {
         player.sprite.y = 420;
         player.sprite.vy = 0;
         player.sprite.vx = 0;
-        player.maxHeight = player.sprite.y + 1;
+        player.maxHeight = player.sprite.y+1;
+        gameOverText.y = player.sprite.y - 50;
+
 
         // HUD //
         score = new PIXI.Text(player.score, {fontFamily : 'Press Start 2P', fontSize: 18,
@@ -236,7 +296,7 @@ function main() {
         score.visible = true;
         app.stage.addChild(score);
 
-        levelText = new PIXI.Text("Level " + level, {fontFamily : 'Press Start 2P', fontSize: 18,
+        levelText = new PIXI.Text("Level " + level, {fontFamily : 'Press Start 2P', fontSize: 16,
                                           fill: 0xffffff, align : 'left'});
         levelText.x = W - levelText.width - 10;
         levelText.y = 0;
@@ -410,15 +470,18 @@ function main() {
 function createLevelBase() {
     /*
     Create a base for the level at a specific y value. This will be the same each time.
+
+    TODO: refactor to let any asset be passed in.
     */
     for (var i  = 0 ; i < 32; i++){
         var tile = new PIXI.Sprite(PIXI.loader.resources["assets/log.png"].texture);
         floor.addChild(tile);
-        console.log("hey listen");
         tile.x = i * unit;
-        tile.y = 454;
+        tile.y = LEVEL_BASE;
     }
 }
+
+
 
 function createPlat(level, yval){
     /*
@@ -463,6 +526,20 @@ function createGoal(yval){
 
 }
 
+function createLava() {
+  app.stage.removeChild(lava);
+  lava = new PIXI.Container();
+  for (var h = 0; h < 3; h++){
+    for (var i  = 0 ; i < 6; i++){
+        var tile = new PIXI.Sprite(PIXI.loader.resources["assets/lava.png"].texture);
+        lava.addChild(tile);
+        tile.x = i * 100;
+        tile.y = LEVEL_BASE + ((h+1) * 100);
+    }
+  }
+  app.stage.addChild(lava);
+}
+
 function createLevel(level, yval){
     /* Create a level on win of a previous level.
     level is the global variable of how many times a player has reached a goal.
@@ -480,7 +557,7 @@ function createLevel(level, yval){
     app.stage.addChild(floor);
 
     createLevelBase();
-    player.sprite.y = 454;
+    player.sprite.y = LEVEL_BASE-1;
 
     for (var k = 0; k < 10 + level; k++){
         createPlat(level, yval);
